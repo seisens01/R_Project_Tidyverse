@@ -2,6 +2,8 @@
 # R_Tidyverse_Exercises_NHANES_drug_use_by_gender
 Plots and descriptive statistics for NHANES data on self-reported drug use in men and women from 2010-2016
 
+**To view the plots associated with the markdown, please go to http://rpubs.com/seisens/1068345**
+
 The purpose of this project is to apply lessons learned about dplyr and ggplot2 from the DataCamp Interactive Course, "Introduction to the Tidyverse" (https://app.datacamp.com/learn/courses/introduction-to-the-tidyverse), taught online by David Robinson, to explore a dataset containing real data. The R dplyr package allows one to manipulate data in R by filtering, sorting, and summarizing a dataset and the ggplot2 package allows for visualization of data with various types of plots. I completed the course in July 2023.
 
 I am interested in being a public health data analyst, with special interest in substance use and psychiatric disorders. I chose to download demographic and questionnaire data from the National Health and Nutrition Examination Survey (NHANES; see citation at end of document) public use data files. The NHANES is a set of studies used to assess health and nutritional status of adults and children in the United States. The NHANES survey has been a continuous program since 1999, examining a nationally representative sample of ~5000 people per year.
