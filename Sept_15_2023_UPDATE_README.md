@@ -1,8 +1,8 @@
 # September 15, 2023
-# R_Tidyverse_Exercises_NHANES_drug_use_by_gender
-Plots and descriptive statistics for NHANES data on self-reported drug use in men and women from 2010-2016
+# R_Tidyverse_Exercises_NHANES_drug_use_by_gender_and_age
+Plots and descriptive statistics for NHANES data on self-reported drug use in men and women, age 18-65 years, from 2011-2018
 
-**To view the plots associated with the markdown, please go to http://rpubs.com/seisens/1068345**
+**To view the plots associated with the markdown, please go to http://rpubs.com/seisens/1084807**
 
 The purpose of this project is to apply lessons learned about dplyr and ggplot2 from the DataCamp Interactive Course, "Introduction to the Tidyverse" (https://app.datacamp.com/learn/courses/introduction-to-the-tidyverse), taught online by David Robinson, to explore a dataset containing real data. The R dplyr package allows one to manipulate data in R by filtering, sorting, and summarizing a dataset and the ggplot2 package allows for visualization of data with various types of plots. I completed the course in July 2023.
 
