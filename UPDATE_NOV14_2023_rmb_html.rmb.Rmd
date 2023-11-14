@@ -1,0 +1,2173 @@
+---
+title: "September_14.2023_rmd_html"
+author: "Sarah Eisenstein"
+date: "`r Sys.Date()`"
+output:
+  html_document: default
+  word_document: default
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+**Part 1: Description of project.**  Apply tidyverse tools (dplyr, ggplot2) to manipulate and visualize real world public data; UPDATED FROM FILE "August2.2023_rmb_html_.rmb.Rmd". As described in the README.md file, I am interested in substance use disorders and how they differ by gender and other factors such as socioeconomic status in the community. I sought to apply dplyr and ggplot2 tools to data I downloaded from Nutritional Health and Nutrition Examination Survey (NHANES, https://wwwn.cdc.gov/nchs/nhanes/).The income:family size ratio was used as a marker of degree of poverty (higher numbers = less poverty) and the substances considered in this exploratory project include marijuana, cocaine, heroin, and methamphetamine. There are 4 cohorts from different time points (year of survey participation) included: 2011-2012, 2013-2014, 2015-2016, 2017-2018. The main update here is that DATA IS NOW WEIGHTED BY DEMOGRAPHICS AND NOW ACCURATELY REFLECT US CIVILIAN POPULATION (see https://wwwn.cdc.gov/nchs/data/nhanes/analyticguidelines/11-16-analytic-guidelines.pdf). Descriptions interpreting data are directly below plots.
+
+**Part 2: Packages Required**
+```{r}
+#for data wrangling; dplyr::select, mutate, select, recode
+library(dplyr) 
+
+#for data visualization with various plots
+library(ggplot2)
+
+####August 11, 2023 - today I found out that R has an NHANES package, making it 
+# easy to browse, select and import databases of interest!! Thanks, chatgpt AI!
+
+#for fully customizable browsing, selection and retrieving data directly from 
+# NHANES website
+#install.packages("nhanesA")
+library(nhanesA)
+
+##used for handling survey data and applying survey weights
+# install.packages("survey") 
+library(survey)
+
+##allows for dplyr-like syntax to survey data
+# install.packages("srvyr") 
+library(srvyr, warn.conflicts = FALSE)
+
+## appends large datasets together
+# install.packages("data.table") 
+library("data.table")
+
+```
+
+**Part 3: Dataset description**
+For the current project, I focused on adults 18+ years, from cross-sectional cohorts assessed at 4 different time points (2011-2012, 2013-2014, 2015-2016, 2017-2018). Demographic ("Demographic Variables and Sample Weights" data file) and questionnaire ("Drug Use" data file) data. These data sets were merged.
+```{r}
+
+### Demographic data ###########################################################
+
+nhanesTables(data_group = 'DEMO', year = 2011)
+
+demo_2011_2012 <- nhanes('DEMO_G')
+names(demo_2011_2012)
+
+nhanesTables(data_group = 'DEMO', year = 2013)
+
+demo_2013_2014 <- nhanes('DEMO_H')
+names(demo_2013_2014)
+
+nhanesTables(data_group = 'DEMO', year = 2014)
+
+nhanesTables(data_group = 'DEMO', year = 2015)
+
+demo_2015_2016 <- nhanes('DEMO_I')
+names(demo_2015_2016)
+
+nhanesTables(data_group = 'DEMO', year = 2016)
+
+nhanesTables(data_group = 'DEMO', year = 2017)
+
+nhanesTables(data_group = 'DEMO', year = 2018)
+
+demo_2017_2018 <- nhanes('DEMO_J')
+names(demo_2017_2018)
+
+```
+
+```{r}
+
+### Questionnaire Drug Use Data ################################################
+
+nhanesTables(data_group = 'Q', year = 2011)
+
+nhanesTables(data_group = 'Q', year = 2012)
+
+DUQ_2011_2012 <- nhanes('DUQ_G')
+names(DUQ_2011_2012)
+
+nhanesTables(data_group = 'Q', year = 2013)
+
+nhanesTables(data_group = 'Q', year = 2014)
+
+DUQ_2013_2014 <- nhanes('DUQ_H')
+names(DUQ_2013_2014)
+
+nhanesTables(data_group = 'Q', year = 2015)
+
+nhanesTables(data_group = 'Q', year = 2016)
+
+DUQ_2015_2016 <- nhanes('DUQ_I')
+names(DUQ_2015_2016)
+
+nhanesTables(data_group = 'Q', year = 2017)
+
+nhanesTables(data_group = 'Q', year = 2018)
+
+DUQ_2017_2018 <- nhanes('DUQ_J')
+names(DUQ_2017_2018)
+
+```
+
+```{r}
+
+### Translate numeric code to text for categorical variables####################
+
+demo_2011_2012_trans <- nhanesTranslate('DEMO_G', names(demo_2011_2012), 
+                                        data = demo_2011_2012)
+
+demo_2013_2014_trans <- nhanesTranslate('DEMO_H', names(demo_2013_2014), 
+                                        data = demo_2013_2014)
+
+demo_2015_2016_trans <- nhanesTranslate('DEMO_I', names(demo_2015_2016),
+                                        data = demo_2015_2016)
+
+demo_2017_2018_trans <- nhanesTranslate('DEMO_J', names(demo_2017_2018),
+                                        data = demo_2017_2018)
+
+DUQ_2011_2012_trans <- nhanesTranslate('DUQ_G', names(DUQ_2011_2012),
+                                       data = DUQ_2011_2012)
+
+DUQ_2013_2014_trans <- nhanesTranslate('DUQ_H', names(DUQ_2013_2014),
+                                       data = DUQ_2013_2014)
+
+DUQ_2015_2016_trans <- nhanesTranslate('DUQ_I', names(DUQ_2015_2016),
+                                       data =   DUQ_2015_2016)
+
+DUQ_2017_2018_trans <- nhanesTranslate('DUQ_J', names(DUQ_2017_2018),
+                                       data = DUQ_2017_2018)
+
+```
+                                         
+```{r}
+
+### Retain only useful variables ###############################################
+
+demo_2011_2012_select <- demo_2011_2012_trans[c("SEQN", #Respondent sequence 
+                                                #number
+                                                "SDDSRVYR", #data release cycle
+                                                "RIAGENDR", #gender
+                                                "RIDAGEYR", #age in yrs at 
+                                                #screening
+                                                "RIDRETH3", #race with NH Asian
+                                                "DMDEDUC2", #education level 
+                                                #adults 20+
+                                                "WTINT2YR", #full sample 2 yr 
+                                                #interview weight
+                                                "WTMEC2YR", #full sample 2 yr 
+                                                #MEC exam weight
+                                                "SDMVPSU", #masked variance 
+                                                #psuedo PSU
+                                                "SDMVSTRA", # masked variance 
+                                                #psuedo-stratum
+                                                "INDFMPIR" #ratio of family 
+                                                #income to poverty
+                                                )]
+
+demo_2013_2014_select <- demo_2013_2014_trans[c("SEQN", #Respondent sequence 
+                                                #number
+                                                "SDDSRVYR", #data release cycle
+                                                "RIAGENDR", #gender
+                                                "RIDAGEYR", #age in yrs at 
+                                                #screening
+                                                "RIDRETH3", #race with NH Asian
+                                                "DMDEDUC2", #education level 
+                                                #adults 20+
+                                                "WTINT2YR", #full sample 2 yr 
+                                                #interview weight
+                                                "WTMEC2YR", #full sample 2 yr 
+                                                #MEC exam weight
+                                                "SDMVPSU", #masked variance 
+                                                #psuedo PSU
+                                                "SDMVSTRA", # masked variance 
+                                                #psuedo-stratum
+                                                "INDFMPIR" #ratio of family 
+                                                #income to poverty
+                                                )]
+
+demo_2015_2016_select <- demo_2015_2016_trans[c("SEQN", #Respondent sequence 
+                                                #number
+                                                "SDDSRVYR", #data release cycle
+                                                "RIAGENDR", #gender
+                                                "RIDAGEYR", #age in yrs at 
+                                                #screening
+                                                "RIDRETH3", #race with NH Asian
+                                                "DMDEDUC2", #education level 
+                                                #adults 20+
+                                                "WTINT2YR", #full sample 2 yr 
+                                                #interview weight
+                                                "WTMEC2YR", #full sample 2 yr 
+                                                #MEC exam weight
+                                                "SDMVPSU", #masked variance 
+                                                #psuedo PSU
+                                                "SDMVSTRA", # masked variance 
+                                                #psuedo-stratum
+                                                "INDFMPIR" #ratio of family 
+                                                #income to poverty
+                                                )]
+
+demo_2017_2018_select <- demo_2017_2018_trans[c("SEQN", #Respondent sequence 
+                                                #number
+                                                "SDDSRVYR", #data release cycle
+                                                "RIAGENDR", #gender
+                                                "RIDAGEYR", #age in yrs at '
+                                                #screening
+                                                "RIDRETH3", #race with NH Asian
+                                                "DMDEDUC2", #education level 
+                                                #adults 20+
+                                                "WTINT2YR", #full sample 2 yr 
+                                                #interview weight
+                                                "WTMEC2YR", #full sample 2 yr 
+                                                #MEC exam weight
+                                                "SDMVPSU", #masked variance 
+                                                #psuedo PSU
+                                                "SDMVSTRA", # masked variance 
+                                                #psuedo-stratum
+                                                "INDFMPIR" #ratio of family 
+                                                #income to poverty
+                                                )]
+
+DUQ_2011_2012_select <- DUQ_2011_2012_trans[c("SEQN", #Respondent sequence 
+                                              #number
+                                                "DUQ200", #ever used mj/hashish
+                                                "DUQ210", #age 1st try mj
+                                                "DUQ213", #age started using mj 
+                                              #regular
+                                                "DUQ230", # no. days used mj in 
+                                              #past month
+                                                "DUQ240", #ever used coc, heroin 
+                                              #or meth
+                                                "DUQ260", #age 1st try coc
+                                                "DUQ280", #no days used coc in 
+                                              #last month
+                                                "DUQ300", #age 1st try heroin
+                                                "DUQ320", # no days used heroin 
+                                              #in last month
+                                                "DUQ340", # age first try meth
+                                                "DUQ360" #no days used meth in 
+                                              #last month
+                                                )]
+
+DUQ_2013_2014_select <- DUQ_2013_2014_trans[c("SEQN", #Respondent sequence 
+                                              #number
+                                              "DUQ200", #ever used mj/hashish
+                                              "DUQ210", #age 1st try mj
+                                              "DUQ213", #age started using mj 
+                                              #regular
+                                              "DUQ230", # no. days used mj in 
+                                              #past month
+                                              "DUQ240", #ever used coc, heroin 
+                                              #or meth
+                                              "DUQ260", #age 1st try coc
+                                              "DUQ280", #no days used coc in 
+                                              #last month
+                                              "DUQ300", #age 1st try heroin
+                                              "DUQ320", # no days used heroin in 
+                                              #last month
+                                              "DUQ340", # age first try meth
+                                              "DUQ360" #no days used meth in 
+                                              #last month
+                                              )]
+
+DUQ_2015_2016_select <- DUQ_2015_2016_trans[c("SEQN", #Respondent sequence 
+                                              #number
+                                              "DUQ200", #ever used mj/hashish
+                                              "DUQ210", #age 1st try mj
+                                              "DUQ213", #age started using mj 
+                                              #regular
+                                              "DUQ230", # no. days used mj in 
+                                              #past month
+                                              "DUQ240", #ever used coc, heroin 
+                                              #or meth
+                                              "DUQ260", #age 1st try coc
+                                              "DUQ280", #no days used coc in 
+                                              #last month
+                                              "DUQ300", #age 1st try heroin
+                                              "DUQ320", # no days used heroin in 
+                                              #last month
+                                              "DUQ340", # age first try meth
+                                              "DUQ360" #no days used meth in 
+                                              #last month
+                                              )]
+
+DUQ_2017_2018_select <- DUQ_2017_2018_trans[c("SEQN", #Respondent sequence 
+                                              #number
+                                              "DUQ200", #ever used mj/hashish
+                                              "DUQ210", #age 1st try mj
+                                              "DUQ213", #age started using mj 
+                                              #regular
+                                              "DUQ230", # no. days used mj in 
+                                              #past month
+                                              "DUQ240", #ever used coc, heroin 
+                                              #or meth
+                                              "DUQ260", #age 1st try coc
+                                              "DUQ280", #no days used coc in 
+                                              #last month
+                                              "DUQ300", #age 1st try heroin
+                                              "DUQ320", # no days used heroin in 
+                                              #last month
+                                              "DUQ340", # age first try meth
+                                              "DUQ360" #no days used meth in 
+                                              #last month
+                                              )]
+
+
+```
+
+```{r}
+
+### Merge data tables ##########################################################
+
+merged_data_2011_2012 <- merge(demo_2011_2012_select, DUQ_2011_2012_select, 
+                               by = c("SEQN"), all = TRUE)
+
+head(merged_data_2011_2012)
+
+merged_data_2013_2014 <- merge(demo_2013_2014_select, DUQ_2013_2014_select, 
+                               by = c("SEQN"), all = TRUE)
+
+head(merged_data_2013_2014)
+
+merged_data_2015_2016 <- merge(demo_2015_2016_select, DUQ_2015_2016_select, 
+                               by = c("SEQN"), all = TRUE)
+
+head(merged_data_2015_2016)
+
+merged_data_2017_2018 <- merge(demo_2017_2018_select, DUQ_2017_2018_select, 
+                               by = c("SEQN"), all = TRUE)
+
+head(merged_data_2017_2018)
+
+```
+
+```{r}
+
+### Append tables together #####################################################
+
+table_2011_2018 <- rbind(merged_data_2011_2012, merged_data_2013_2014, 
+                         merged_data_2015_2016, merged_data_2017_2018)
+
+dim(table_2011_2018) 
+
+```
+
+*Handling weighted NHANES multiple year sample data*
+
+From https:https://wwwn.cdc.gov/nchs/data/nhanes/analyticguidelines/11-16
+-analytic-guidelines.pdf
+
+"Specific subsample file documentation can be found via the link next to the
+respective data file on the NHANES website.
+Importantly, the documentation will provide detailed information on the 
+component, the eligible sample, the laboratory method used, and it will include 
+analytic notes containing information on the specific subsample weights that the 
+analyst should use. "
+
+From https://wwwn.cdc.gov/nchs/nhanes/tutorials/Weighting.aspx
+
+Selecting the Correct Weight in NHANES
+Various sample weights are available on the data release files – such as the 
+interview weight (wtint2yr), the MEC exam weight (wtmec2yr), and several 
+subsample weights. Use of the correct sample weight for NHANES analyses depends 
+on the variables being used. A good rule of thumb is to use "the least common 
+denominator" where the variable of interest that was collected on the smallest 
+number of respondents is the "least common denominator." The sample weight that 
+applies to that variable is the appropriate one to use for that particular 
+analysis. 
+Review the documentation file for each component included in your analysis; the 
+analytic notes often recommend the appropriate weight to be used for analyzing 
+variables from that component. Be aware that some questionnaire components were 
+administered during the MEC session rather than during the in-home interview, 
+and therefore the MEC exam weights must be used for these components. 
+All interview and MEC exam weights can be found on the demographic file for the 
+respective survey cycle. Weights for a given component conducted on only a 
+subsample of the original NHANES sample (e.g. many environment chemicals) are 
+available on the data file for that particular component. 
+
+*My decision: Drug use is part of the MEC and is the LCD with smallest number of 
+respondents, so use MEC weight and not interview weight.*
+
+From https://wwwn.cdc.gov/nchs/nhanes/tutorials/Weighting.aspx: 
+To get correct MEC weight across these 4 2-yr cycles: if sddsrvyr in (7,8,9,10) 
+then MEC8YR = 1/4 * WTMEC2YR; 
+
+Example R-code: https://wwwn.cdc.gov/nchs/data/Tutorials/Code/DB303_R.r. Example 
+of NHANES study where dependent variable is depression.
+
+________________________________________________________________________________
+
+**Part 4: Descriptive statistics and visualizations WEIGHTED BY DEMOGRAPHICS 
+regarding self-reported drug use in men and women from surveys obtained 
+2011-2018.**
+
+**Part 4A:** *Number of and percent of participants who responded "Yes" to ever 
+having used A) marijuana or B) cocaine, heroin and/or meth. Described and
+visualized with bar plots.*
+
+```{r}
+
+# A) Ever use marijuana ########################################################
+
+## Define dataset containing data of interest
+
+table_nhanes_1 <- table_2011_2018 %>%
+  # Set 7 = Refused and 9 = Don't Know To Missing for variable 200  ##
+  mutate(DUQ200 = replace(DUQ200, DUQ200 >= 7, NA)) %>%
+  #create factor variables
+  mutate(# create indicator for overall summary
+    table_nhanes_1 = 1,
+    Year = factor(SDDSRVYR, labels = c("2011-2012", "2013-2014", 
+                                       "2015-2016", "2017-2018")),
+    Gender = factor(RIAGENDR, labels=c("Men", "Women")),
+    Age.Group = cut(RIDAGEYR, breaks=c(-Inf,19,39,59,Inf),
+                    labels=c("Under 20", "20-39","40-59","60 and over")),
+    # Generate 8-year MEC weight (Divide weight by 4 because we are 
+    #appending 4 survey cycles)                                                             
+    # Note: using the MEC Exam Weights (WTMEC2YR), per the analytic notes 
+    #on the NHANES documentation  
+    WTMEC8YR = WTMEC2YR/4,
+    # Define indicator for analysis population of interest: DUQ200, no missing
+    #data
+    inAnalysis = (!is.na(DUQ200)))
+
+## Define survey design ######################################################
+
+# Define survey design for entire dataset
+# NHANES_all_2 <- svydesign(data = table_nhanes_1, id= ~SDMVPSU, 
+# strata= ~SDMVSTRA, weights=~WTMEC8YR, nest=TRUE)
+# Create a survey design object for the subset of interest: !is.na for DUQ200 
+# Subsetting the original survey design object ensures we keep the design 
+#information about the number of clusters and strata
+
+NHANES_all_2 <- as_survey_design(table_nhanes_1, id=SDMVPSU, strata=SDMVSTRA, 
+                        weights=WTMEC8YR, nest=TRUE)
+
+NHANES_DUQ200 <- subset(NHANES_all_2, inAnalysis)
+
+```
+
+```{r}
+
+## Use dplyr to manipulate data, obtain tibbles, and ggplot2 to visualize data
+
+#By gender
+total_count <- table_nhanes_1 %>%
+  filter(DUQ200 %in% c("Yes", "No")) %>%
+  group_by(Gender,DUQ200) %>%
+  summarize(n = n()) %>%  
+  mutate(count = n, percent = (n/sum(n))*100)
+
+total_count
+
+total_count_yes <- total_count %>%
+  filter(DUQ200 %in% "Yes") 
+
+total_count_yes
+
+ggplot(total_count_yes, aes(x = Gender, y = count, fill = Gender)) + 
+  geom_col() + 
+  scale_fill_brewer(palette = "Set2") + 
+  ylab("Number of individuals reporting ever trying marijuana") + 
+  ylim(NA,5000)
+
+ggplot(total_count_yes, aes(x = Gender, y = percent, fill = Gender)) + 
+  geom_col() + 
+  scale_fill_brewer(palette = "Set2") + 
+  ylab("Percent of individuals reporting ever trying marijuana") + 
+  ylim(NA,100)
+
+#By age group
+total_count <- table_nhanes_1 %>%
+  filter(DUQ200 %in% c("Yes", "No")) %>%
+  group_by(Age.Group,DUQ200) %>%
+  summarize(n = n()) %>%  
+  mutate(count = n, percent = (n/sum(n))*100)
+
+total_count
+
+total_count_yes <- total_count %>%
+  filter(DUQ200 %in% "Yes") 
+
+total_count_yes
+
+ggplot(total_count_yes, aes(x = Age.Group, y = count, fill = Age.Group)) + 
+  geom_col() + 
+  scale_fill_brewer(palette = "Set2") + 
+  ylab("Number of individuals reporting ever trying marijuana") + 
+  ylim(NA,5000)
+
+ggplot(total_count_yes, aes(x = Age.Group, y = percent, fill = Age.Group)) + 
+  geom_col() + 
+  scale_fill_brewer(palette = "Set2") + 
+  ylab("Percent of individuals reporting ever trying marijuana") + 
+  ylim(NA,100)
+
+```
+
+**Description of above:** *By gender (x-axis = Gender):* More male than female
+participants responded "yes" to having ever tried marijuana. About half of each
+gender responded "Yes" (59% male, 47% female). *By age group 
+(x-axis = Age.Group):* Most participants who responded "Yes" were older than 20 
+years. Across age groups, about half of participants responded "Yes", but this 
+ratio was a bit higher in the 20-39 years group.
+
+```{r}
+
+# B) Ever use cocaine/heroin/meth ##############################################
+
+table_nhanes_1 <- table_2011_2018 %>%
+  # Set 7 = Refused and 9 = Don't Know To Missing for variable 240  ##
+  mutate(DUQ240 = replace(DUQ240, DUQ240 >= 7, NA)) %>%
+  #create factor variables
+  mutate(# create indicator for overall summary
+    table_nhanes_1 = 1,
+    Year = factor(SDDSRVYR, labels = c("2011-2012", "2013-2014", 
+                                       "2015-2016", "2017-2018")),
+    Gender = factor(RIAGENDR, labels=c("Men", "Women")),
+    Age.Group = cut(RIDAGEYR, breaks=c(-Inf,19,39,59,Inf),
+                    labels=c("Under 20", "20-39","40-59","60 and over")),
+    # Generate 8-year MEC weight (Divide weight by 4 because we are 
+    #appending 4 survey cycles)                                                             
+    # Note: using the MEC Exam Weights (WTMEC2YR), per the analytic notes 
+    #on the NHANES documentation  
+    WTMEC8YR = WTMEC2YR/4,
+    # Define indicator for analysis population of interest: DUQ240 with a 
+    #valid age 
+    inAnalysis = (!is.na(DUQ240)))
+
+NHANES_all_2 <- as_survey_design(table_nhanes_1, id=SDMVPSU, strata=SDMVSTRA, 
+                                 weights=WTMEC8YR, nest=TRUE)
+
+NHANES_DUQ240 <- subset(NHANES_all_2, inAnalysis)
+
+```
+
+```{r}
+
+## Use dplyr to manipulate data, obtain tibbles, and ggplot2 to visualize data
+
+#By gender
+total_count <- table_nhanes_1 %>%
+  filter(DUQ240 %in% c("Yes", "No")) %>%
+  group_by(Gender,DUQ240) %>%
+  summarize(n = n()) %>%  
+  mutate(count = n, percent = (n/sum(n))*100)
+
+total_count
+
+total_count_yes <- total_count %>%
+  filter(DUQ240 %in% "Yes") 
+
+total_count_yes
+
+ggplot(total_count_yes, aes(x = Gender, y = count, fill = Gender)) + 
+  geom_col() + 
+  scale_fill_brewer(palette = "Set2") + 
+  ylab("Number of individuals reporting ever trying cocaine, heroin or meth") + 
+  ylim(NA, 5000)
+
+ggplot(total_count_yes, aes(x = Gender, y = percent, fill = Gender)) + 
+  geom_col() + 
+  scale_fill_brewer(palette = "Set2") + 
+  ylab("Percent of individuals reporting ever trying cocaine, heroin or meth") + 
+  ylim(NA, 100)
+
+#By age group
+total_count <- table_nhanes_1 %>%
+  filter(DUQ240 %in% c("Yes", "No")) %>%
+  group_by(Age.Group,DUQ240) %>%
+  summarize(n = n()) %>%  
+  mutate(count = n, percent = (n/sum(n))*100) 
+
+total_count
+
+total_count_yes <- total_count %>%
+  filter(DUQ240 %in% "Yes") 
+
+total_count_yes
+
+ggplot(total_count_yes, aes(x = Age.Group, y = count, fill = Age.Group)) + 
+  geom_col() + 
+  scale_fill_brewer(palette = "Set2") + 
+  ylab("Number of individuals reporting ever trying cocaine, heroin or meth") + 
+  ylim(NA,5000)
+
+ggplot(total_count_yes, aes(x = Age.Group, y = percent, fill = Age.Group)) + 
+  geom_col() + 
+  scale_fill_brewer(palette = "Set2") + 
+  ylab("Percent of individuals reporting ever trying cocaine, heroin or meth") + 
+  ylim(NA,100)
+
+```
+
+
+**Description of above:** *Y-axis scales are the same as for marijuana use to 
+illustrate differences between number of participants ever having tried 
+marijuana vs cocaine/heroin/meth. By gender (x-axis = Gender):* Similar to 
+marijuana, more male than female participants responded "yes" to having ever 
+tried cocaine, heroin or meth. However, only 12% of women and 21% of men 
+responded "Yes", much less than for marijuana. *By age group 
+(x-axis = Age.Group):* Most participants who responded "Yes" were older than 20 
+years. Across age groups, about 15-20% of participants responded "Yes", but this 
+ratio was smaller in the Under 20 years age group.
+
+________________________________________________________________________________
+**Part 4B:** *Descriptive statistics and visualizations of self-reported number 
+of days during past month participant used A) marijuana, B) cocaine, C) heroin, 
+D) methamphetamine (meth). Includes weighted means and standard errors described 
+and visualized with bar plots, weighted frequencies visualized with histograms, 
+and relationships to income:family size ratio, an indicator of poverty level. 
+Data is described and visualized as overall, by gender, and by age group.*
+
+```{r}
+
+## A) Number of days used marijuana in past month
+
+## Define dataset containing data of interest
+
+table_nhanes_1 <- table_2011_2018 %>%
+  mutate(DUQ230 = replace(DUQ230, DUQ230 >= 777, NA)) %>%
+  #create factor variables
+  mutate(# create indicator for overall summary
+    table_nhanes_1 = 1,
+    Year = factor(SDDSRVYR, labels = c("2011-2012", "2013-2014", 
+                                       "2015-2016", "2017-2018")),
+    Gender = factor(RIAGENDR, labels=c("Men", "Women")),
+    Age.Group = cut(RIDAGEYR, breaks=c(-Inf,19,39,59,Inf),
+                    labels=c("Under 20", "20-39","40-59","60 and over")),
+    # Generate 8-year MEC weight (Divide weight by 4 because we are 
+    #appending 4 survey cycles)                                                             
+    # Note: using the MEC Exam Weights (WTMEC2YR), per the analytic notes 
+    #on the NHANES documentation  
+    WTMEC8YR = WTMEC2YR/4,
+    # Define indicator for analysis population of interest: DUQ230 with a 
+    #valid age 
+    inAnalysis = (!is.na(DUQ230)))
+
+## Define survey design 
+
+NHANES_all_2 <- as_survey_design(table_nhanes_1, id=SDMVPSU, strata=SDMVSTRA, 
+                                 weights=WTMEC8YR, nest=TRUE)
+
+NHANES_DUQ230 <- subset(NHANES_all_2, inAnalysis)
+
+```
+
+```{r}
+
+# Weighted data descriptive statistics and visualizations
+
+# Define a function to call svymean and unweighted count
+
+getSummary <- function(varformula, byformula, design){
+  # Get mean, stderr, and unweighted sample size
+  c <- svyby(varformula, byformula, design, unwtd.count ) 
+  p <- svyby(varformula, byformula, design, svymean) 
+  outSum <- left_join(select(c,-se), p) 
+  outSum
+}
+
+# Get results (see output for all results tables and plots)
+
+getSummary <- function(varformula, byformula, design){
+  # Get mean, stderr, and unweighted sample size
+  c <- svyby(varformula, byformula, design, unwtd.count ) 
+  p <- svyby(varformula, byformula, design, svymean) 
+  outSum <- left_join(select(c,-se), p) 
+  outSum
+}
+
+#Overall
+getSummary(~DUQ230, ~table_nhanes_1, NHANES_DUQ230)
+
+out <- svyby(formula = ~DUQ230,
+             by = ~table_nhanes_1,
+             design = NHANES_DUQ230,
+             FUN = svymean,
+             na.rm = TRUE,
+             keep.names = FALSE)
+
+out_col <- mutate(out,
+                  lower = DUQ230 - 1*se,
+                  upper = DUQ230 + 1*se)
+
+ggplot(out_col, aes(table_nhanes_1, DUQ230, 
+                    ymin = lower,
+                    ymax = upper)) + 
+  geom_col(fill = "purple") + 
+  ylim(0,NA) + 
+  ylab("Average number of days used marijuana in past month") + 
+  geom_errorbar(width = 0.8)
+
+####filter out 0 values
+table_nhanes_1_exclude_0 <- table_nhanes_1 %>% 
+  filter(DUQ230 > 0)
+
+ggplot(table_nhanes_1_exclude_0, aes(x = DUQ230, weight = WTMEC8YR)) +
+  geom_histogram(binwidth = 5, color = "darkblue",
+                 fill = "lightblue", 
+                 na.rm = TRUE)+
+  xlab("Number of days used marijuana in past month") + 
+  xlim(1,NA)
+
+# By Gender
+getSummary(~DUQ230, ~Gender, NHANES_DUQ230)
+
+out <- svyby(formula = ~DUQ230,
+             by = ~Gender,
+             design = NHANES_DUQ230,
+             FUN = svymean,
+             na.rm = TRUE,
+             keep.names = FALSE)
+
+out_col <- mutate(out,
+                  lower = DUQ230 - 1*se,
+                  upper = DUQ230 + 1*se)
+
+ggplot(out_col, aes(x = Gender, y = DUQ230, 
+                    ymin = lower,
+                    ymax = upper)) + 
+  geom_col(fill = "purple") + 
+  ylim(0,NA) + 
+  ylab("Average number of days used marijuana in past month") + 
+  geom_errorbar(width = 0.8) 
+
+ggplot(table_nhanes_1_exclude_0, aes(x = DUQ230, weight = WTMEC8YR)) +
+  geom_histogram(binwidth = 5, color = "darkblue",
+                 fill = "lightblue", 
+                 na.rm = TRUE) +
+  facet_wrap(~Gender) +
+  xlab("Number of days used marijuana in past month") +
+  xlim(1,NA)
+
+# By age group
+getSummary(~DUQ230, ~Age.Group, NHANES_DUQ230)
+
+out <- svyby(formula = ~DUQ230,
+             by = ~Age.Group,
+             design = NHANES_DUQ230,
+             FUN = svymean,
+             na.rm = TRUE,
+             keep.names = FALSE)
+
+out_col <- mutate(out,
+                  lower = DUQ230 - 1*se,
+                  upper = DUQ230 + 1*se)
+
+ggplot(out_col, aes(x = Age.Group, y = DUQ230, 
+                    ymin = lower,
+                    ymax = upper)) + 
+  geom_col(fill = "purple") + 
+  ylim(0,NA) + 
+  ylab("Average number of days used marijuana in past month") + 
+  geom_errorbar(width = 0.8) 
+
+ggplot(table_nhanes_1_exclude_0, aes(x = DUQ230, weight = WTMEC8YR)) +
+  geom_histogram(binwidth = 5, color = "darkblue",
+                 fill = "lightblue", 
+                 na.rm = TRUE) +
+  facet_wrap(~Age.Group) +
+  xlab("Number of days used marijuana in past month") +
+  xlim(1,NA)
+
+################Relationship to Income:Family size ratio#######################
+
+table_nhanes_1_exclude_0 <- table_nhanes_1 %>%
+  filter(DUQ230 > 0)
+
+ggplot(table_nhanes_1_exclude_0, aes(x = DUQ230, y = 
+                             INDFMPIR, alpha = WTMEC8YR)) + 
+  geom_point(na.rm = TRUE) + 
+  scale_color_brewer(palette = "Set2") + 
+  ylab("Income to Family Ratio") + 
+  xlab("Number of days used marijuana in past month") + 
+  xlim(1,30)
+
+
+ggplot(table_nhanes_1_exclude_0, aes(x = DUQ230, y = 
+                             INDFMPIR, 
+                           color = Gender, 
+                           alpha = WTMEC8YR)) + 
+  geom_point(na.rm = TRUE) +
+  scale_color_brewer(palette = "Set2") + 
+  ylab("Income to Family Ratio") + 
+  xlab("Number of days used marijuana in past month") + 
+  facet_wrap(~Gender) + 
+  xlim(1,30)
+
+ggplot(table_nhanes_1_exclude_0, aes(x = DUQ230, y = 
+                              INDFMPIR, 
+                            color = Gender, 
+                            alpha = WTMEC8YR)) + 
+  geom_point(na.rm = TRUE) +
+  scale_color_brewer(palette = "Set2") + 
+  ylab("Income to Family Ratio") + 
+  xlab("Number of days used marijuana in past month") + 
+  facet_wrap(~Age.Group) + 
+  xlim(1,30)
+
+```
+
+**Description of above:** *Darker shading in dot plots indicates more 
+heavily-weighted data points.Histogram "counts" are weighted.* 2,251 
+participants self-reported the number of days they used marijuana in the past 
+month. More men (n = 1355) than women (n = 896) responded. Overall, the average 
+number of days marijuana was used during the past month was ~13 days. Across all 
+age groups, a bimodal frequency distribution occurred where men and women tended 
+to report using marijuana either very few days or nearly every day during the 
+past month. Women tended to use marijuana on fewer days (mean = 12 days) than 
+men (14 days) during the past month. While it appears that marijuana was used 
+more often in people with lower income to family size ratio (higher poverty 
+level), it was also used by people with higher income:family size ratios, with 
+high variability in frequency of use during the past month across gender, age 
+group and poverty levels.
+
+```{r}
+
+# B) Number of days used cocaine in past month (DUQ280)
+
+table_nhanes_1 <- table_2011_2018 %>%
+  mutate(DUQ280 = replace(DUQ280, DUQ280 >= 777, NA)) %>%
+  #create factor variables
+  mutate(# create indicator for overall summary
+    table_nhanes_1 = 1,
+    Year = factor(SDDSRVYR, labels = c("2011-2012", "2013-2014", 
+                                       "2015-2016", "2017-2018")),
+    Gender = factor(RIAGENDR, labels=c("Men", "Women")),
+    Age.Group = cut(RIDAGEYR, breaks=c(-Inf,19,39,59,Inf),
+                    labels=c("Under 20", "20-39","40-59","60 and over")),
+    # Generate 8-year MEC weight (Divide weight by 4 because we are 
+    #appending 4 survey cycles)                                                             
+    # Note: using the MEC Exam Weights (WTMEC2YR), per the analytic notes 
+    #on the NHANES documentation  
+    WTMEC8YR = WTMEC2YR/4,
+    # Define indicator for analysis population of interest: DUQ280 with a 
+    #valid age 
+    inAnalysis = (!is.na(DUQ280)))
+
+NHANES_all_2 <- as_survey_design(table_nhanes_1, id=SDMVPSU, strata=SDMVSTRA, 
+                                 weights=WTMEC8YR, nest=TRUE)
+
+NHANES_DUQ280 <- subset(NHANES_all_2, inAnalysis)
+
+```
+
+```{r}
+
+# Weighted data descriptive statistics and visualizations
+
+# Define a function to call svymean and unweighted count
+
+getSummary <- function(varformula, byformula, design){
+  # Get mean, stderr, and unweighted sample size
+  c <- svyby(varformula, byformula, design, unwtd.count ) 
+  p <- svyby(varformula, byformula, design, svymean) 
+  outSum <- left_join(select(c,-se), p) 
+  outSum
+}
+
+# Get results (see output for all results tables and plots)
+
+getSummary <- function(varformula, byformula, design){
+  # Get mean, stderr, and unweighted sample size
+  c <- svyby(varformula, byformula, design, unwtd.count ) 
+  p <- svyby(varformula, byformula, design, svymean) 
+  outSum <- left_join(select(c,-se), p) 
+  outSum
+}
+
+#DUQ280 weighted mean
+
+getSummary(~DUQ280, ~table_nhanes_1, NHANES_DUQ280)
+
+out <- svyby(formula = ~DUQ280,
+             by = ~table_nhanes_1,
+             design = NHANES_DUQ280,
+             FUN = svymean,
+             na.rm = TRUE,
+             keep.names = FALSE)
+
+out_col <- mutate(out,
+                  lower = DUQ280 - 1*se,
+                  upper = DUQ280 + 1*se)
+
+ggplot(out_col, aes(table_nhanes_1, DUQ280, 
+                    ymin = lower,
+                    ymax = upper)) + 
+  geom_col(fill = "blue") + 
+  ylim(0,NA) + 
+  ylab("Average number of days used cocaine in past month") + 
+  geom_errorbar(width = 0.8)
+
+table_nhanes_1_exclude_0 <- table_nhanes_1 %>%
+  filter(DUQ280 > 0)
+
+ggplot(table_nhanes_1_exclude_0, aes(x = DUQ280, weight = WTMEC8YR)) +
+  geom_histogram(binwidth = 5, color = "darkblue",
+                 fill = "lightblue", 
+                 na.rm = TRUE)+
+  xlab("Number of days used cocaine in past month") +
+  xlim(1,NA)
+
+# By Gender
+getSummary(~DUQ280, ~Gender, NHANES_DUQ280)
+
+out <- svyby(formula = ~DUQ280,
+             by = ~Gender,
+             design = NHANES_DUQ280,
+             FUN = svymean,
+             na.rm = TRUE,
+             keep.names = FALSE)
+
+out_col <- mutate(out,
+                  lower = DUQ280 - 1*se,
+                  upper = DUQ280 + 1*se)
+
+ggplot(out_col, aes(x = Gender, y = DUQ280, 
+                    ymin = lower,
+                    ymax = upper)) + 
+  geom_col(fill = "blue") + 
+  ylim(0,NA) + 
+  ylab("Average number of days used cocaine in past month") + 
+  geom_errorbar(width = 0.8) 
+
+ggplot(table_nhanes_1_exclude_0, aes(x = DUQ280, weight = WTMEC8YR)) +
+  geom_histogram(binwidth = 5, color = "darkblue",
+                 fill = "lightblue", 
+                 na.rm = TRUE) +
+  facet_wrap(~Gender) +
+  xlab("Number of days used cocaine in past month") +
+  xlim(1,NA)
+
+#By age
+getSummary(~DUQ280, ~Age.Group, NHANES_DUQ280)
+
+out <- svyby(formula = ~DUQ280,
+             by = ~Age.Group,
+             design = NHANES_DUQ280,
+             FUN = svymean,
+             na.rm = TRUE,
+             keep.names = FALSE)
+
+out_col <- mutate(out,
+                  lower = DUQ280 - 1*se,
+                  upper = DUQ280 + 1*se)
+
+ggplot(out_col, aes(x = Age.Group, y = DUQ280, 
+                    ymin = lower,
+                    ymax = upper)) + 
+  geom_col(fill = "blue") + 
+  ylim(0,NA) + 
+  ylab("Average number of days used cocaine in past month") + 
+  geom_errorbar(width = 0.8) 
+
+ggplot(table_nhanes_1_exclude_0, aes(x = DUQ280, weight = WTMEC8YR)) +
+  geom_histogram(binwidth = 5, color = "darkblue",
+                 fill = "lightblue", 
+                 na.rm = TRUE) +
+  facet_wrap(~Age.Group) +
+  xlab("Number of days used cocaine in past month") +
+  xlim(1,NA)
+
+################Relationship to Income:Family size ratio#######################
+
+table_nhanes_1_exclude_0 <- table_nhanes_1 %>%
+  filter(DUQ280 > 0)
+
+ggplot(table_nhanes_1_exclude_0, aes(x = DUQ280, y = 
+                             INDFMPIR, alpha = WTMEC8YR)) + 
+  geom_point(na.rm = TRUE) + 
+  scale_color_brewer(palette = "Set2") + 
+  ylab("Income to Family Ratio") + 
+  xlab("Number of days used cocaine in past month") + 
+  xlim(1,30)
+
+ggplot(table_nhanes_1_exclude_0, aes(x = DUQ280, y = 
+                             INDFMPIR, 
+                           color = Gender, 
+                           alpha = WTMEC8YR)) + 
+  geom_point(na.rm = TRUE) +
+  scale_color_brewer(palette = "Set2") + 
+  ylab("Income to Family Ratio") + 
+  xlab("Number of days used cocaine in past month") + 
+  facet_wrap(~Gender) + 
+  xlim(1,30)
+
+ggplot(table_nhanes_1_exclude_0, aes(x = DUQ280, y = 
+                              INDFMPIR, 
+                            color = Gender, 
+                            alpha = WTMEC8YR)) + 
+  geom_point(na.rm = TRUE) +
+  scale_color_brewer(palette = "Set2") + 
+  ylab("Income to Family Ratio") + 
+  xlab("Number of days used cocaine in past month") + 
+  facet_wrap(~Age.Group) + 
+  xlim(1,30)
+
+```
+
+**Description of above:** *Darker shading in dot plots indicates more 
+heavily-weighted data points. Histogram "counts" are weighted.* 227 participants 
+self-reported the number of days they used cocaine in the past month, far fewer 
+than for marijuana. Similar to marijuana, more men (n = 158) than women (n = 69) 
+responded. Overall, the average number of days cocaine was used during the past 
+month was ~3 days, much less than the average for marijuana use. In contrast to 
+marijuana, women used cocaine more frequently (~4 days) than men (~3 days) 
+during the last month. Across gender and all age groups, the frequency 
+distribution was negatively skewed, with some individuals reporting using 
+cocaine anywhere from 3 - 30 days during the last month, although <10 days was 
+most frequent. Cocaine was reported as used more frequently during the past 
+month in men and women with lower income to family size ratio (higher poverty 
+level) in older age groups, particularly in 40-59 year olds. 
+
+```{r}
+
+# C) Number of days used heroin in past month (DUQ320)
+
+table_nhanes_1 <- table_2011_2018 %>%
+  mutate(DUQ320 = replace(DUQ320, DUQ320 >= 77, NA)) %>%
+  #create factor variables
+  mutate(# create indicator for overall summary
+    table_nhanes_1 = 1,
+    Year = factor(SDDSRVYR, labels = c("2011-2012", "2013-2014", 
+                                       "2015-2016", "2017-2018")),
+    Gender = factor(RIAGENDR, labels=c("Men", "Women")),
+    Age.Group = cut(RIDAGEYR, breaks=c(-Inf,19,39,59,Inf),
+                    labels=c("Under 20", "20-39","40-59","60 and over")),
+    # Generate 8-year MEC weight (Divide weight by 4 because we are 
+    #appending 4 survey cycles)                                                             
+    # Note: using the MEC Exam Weights (WTMEC2YR), per the analytic notes 
+    #on the NHANES documentation  
+    WTMEC8YR = WTMEC2YR/4,
+    # Define indicator for analysis population of interest: DUQ320 with a 
+    #valid age 
+    inAnalysis = (!is.na(DUQ320)))
+
+NHANES_all_2 <- as_survey_design(table_nhanes_1, id=SDMVPSU, strata=SDMVSTRA, 
+                                 weights=WTMEC8YR, nest=TRUE)
+
+NHANES_DUQ320 <- subset(NHANES_all_2, inAnalysis)
+
+```
+
+```{r}
+
+# Weighted data descriptive statistics and visualizations
+
+# Define a function to call svymean and unweighted count
+
+getSummary <- function(varformula, byformula, design){
+  # Get mean, stderr, and unweighted sample size
+  c <- svyby(varformula, byformula, design, unwtd.count ) 
+  p <- svyby(varformula, byformula, design, svymean) 
+  outSum <- left_join(select(c,-se), p) 
+  outSum
+}
+
+# Get results (see output for all results tables and plots)
+
+getSummary <- function(varformula, byformula, design){
+  # Get mean, stderr, and unweighted sample size
+  c <- svyby(varformula, byformula, design, unwtd.count ) 
+  p <- svyby(varformula, byformula, design, svymean) 
+  outSum <- left_join(select(c,-se), p) 
+  outSum
+}
+
+#DUQ320 weighted mean
+
+getSummary(~DUQ320, ~table_nhanes_1, NHANES_DUQ320)
+
+out <- svyby(formula = ~DUQ320,
+             by = ~table_nhanes_1,
+             design = NHANES_DUQ320,
+             FUN = svymean,
+             na.rm = TRUE,
+             keep.names = FALSE)
+
+out_col <- mutate(out,
+                  lower = DUQ320 - 1*se,
+                  upper = DUQ320 + 1*se)
+
+ggplot(out_col, aes(table_nhanes_1, DUQ320, 
+                    ymin = lower,
+                    ymax = upper)) + 
+  geom_col(fill = "green") + 
+  ylim(0,NA) + 
+  ylab("Average number of days used heroin in past month") + 
+  geom_errorbar(width = 0.8)
+
+table_nhanes_1_exclude_0 <- table_nhanes_1 %>%
+  filter(DUQ320 > 0)
+
+ggplot(table_nhanes_1_exclude_0, aes(x = DUQ320, weight = WTMEC8YR)) +
+  geom_histogram(binwidth = 5, color = "darkblue",
+                 fill = "lightblue", 
+                 na.rm = TRUE)+
+  xlab("Number of days used heroin in past month") +
+  xlim(1,NA)
+
+# By Gender
+getSummary(~DUQ320, ~Gender, NHANES_DUQ320)
+
+out <- svyby(formula = ~DUQ320,
+             by = ~Gender,
+             design = NHANES_DUQ320,
+             FUN = svymean,
+             na.rm = TRUE,
+             keep.names = FALSE)
+
+out_col <- mutate(out,
+                  lower = DUQ320 - 1*se,
+                  upper = DUQ320 + 1*se)
+
+ggplot(out_col, aes(x = Gender, y = DUQ320, 
+                    ymin = lower,
+                    ymax = upper)) + 
+  geom_col(fill = "green") + 
+  ylim(0,NA) + 
+  ylab("Average number of days used heroin in past month") + 
+  geom_errorbar(width = 0.8) 
+
+ggplot(table_nhanes_1_exclude_0, aes(x = DUQ320, weight = WTMEC8YR)) +
+  geom_histogram(binwidth = 5, color = "darkblue",
+                 fill = "lightblue", 
+                 na.rm = TRUE) +
+  facet_wrap(~Gender) +
+  xlab("Number of days used heroin in past month") +
+  xlim(1,NA)
+
+# By Age Group
+getSummary(~DUQ320, ~Age.Group, NHANES_DUQ320)
+
+out <- svyby(formula = ~DUQ320,
+             by = ~Age.Group,
+             design = NHANES_DUQ320,
+             FUN = svymean,
+             na.rm = TRUE,
+             keep.names = FALSE)
+
+out_col <- mutate(out,
+                  lower = DUQ320 - 1*se,
+                  upper = DUQ320 + 1*se)
+
+ggplot(out_col, aes(x = Age.Group, y = DUQ320, 
+                    ymin = lower,
+                    ymax = upper)) + 
+  geom_col(fill = "green") + 
+  ylim(0,NA) + 
+  ylab("Average number of days used heroin in past month") + 
+  geom_errorbar(width = 0.8) 
+
+ggplot(table_nhanes_1_exclude_0, aes(x = DUQ320, weight = WTMEC8YR)) +
+  geom_histogram(binwidth = 5, color = "darkblue",
+                 fill = "lightblue", 
+                 na.rm = TRUE) +
+  facet_wrap(~Age.Group) +
+  xlab("Number of days used heroin in past month") +
+  xlim(1,NA)
+
+################Relationship to Income:Family size ratio#######################
+
+ggplot(table_nhanes_1_exclude_0, aes(x = DUQ320, 
+                           y = INDFMPIR, 
+                           alpha = WTMEC8YR)) + 
+  geom_point(na.rm = TRUE) + 
+  scale_color_brewer(palette = "Set2") + 
+  ylab("Income to Family Ratio") + 
+  xlab("Number of days used heroin in last month") + 
+  xlim(1,30)
+
+ggplot(table_nhanes_1_exclude_0, aes(x = DUQ320, 
+                           y = INDFMPIR, 
+                           color = Gender, 
+                           alpha = WTMEC8YR)) + 
+  geom_point(na.rm = TRUE) +
+  scale_color_brewer(palette = "Set2") + 
+  ylab("Income to Family Ratio") + 
+  xlab("Number of days used heroin in last month") + 
+  facet_wrap(~Gender) + 
+  xlim(1,30)
+
+ggplot(table_nhanes_1_exclude_0, aes(x = DUQ320, 
+                           y = INDFMPIR, 
+                           color = Gender, 
+                           alpha = WTMEC8YR)) + 
+  geom_point(na.rm = TRUE) +
+  scale_color_brewer(palette = "Set2") + 
+  ylab("Income to Family Ratio") + 
+  xlab("Number of days used heroin in last month") + 
+  facet_wrap(~Age.Group) + 
+  xlim(1,30)
+
+
+
+
+
+```
+
+**Description of above:** *Darker shading in dot plots indicates more 
+heavily-weighted data points. Histogram "counts" are weighted.* 30 participants 
+self-reported the number of days they used heroin in the past month, far fewer 
+than for marijuana or cocaine. No one under 20 years reported using heroin 
+during the past month. Similar to marijuana and cocaine, more men (n = 23) than 
+women (n = 7) responded. Overall, the average number of days heroin was used 
+during the past month was 13 days, less frequently than the average for 
+marijuana use but more frequently than cocaine use. Similar to marijuana but in 
+contrast to cocaine, women used heroin less frequently (~10 days) than men (~14 
+days) during the last month. Frequency distribution of heroin use was variable, 
+with individuals reporting using heroin anywhere from very few to most days 
+during the last month. Heroin was reported as used more frequently during the 
+past month in individuals with lower income to family size ratio (higher poverty 
+level) in older age groups, particularly in 20-39 year olds. 
+
+```{r}
+# D) Number of days used methamphetamine in past month (DUQ360)
+
+table_nhanes_1 <- table_2011_2018 %>%
+  mutate(DUQ360 = replace(DUQ360, DUQ360 >= 77, NA)) %>%
+  #create factor variables
+  mutate(# create indicator for overall summary
+    table_nhanes_1 = 1,
+    Year = factor(SDDSRVYR, labels = c("2011-2012", "2013-2014", 
+                                       "2015-2016", "2017-2018")),
+    Gender = factor(RIAGENDR, labels=c("Men", "Women")),
+    Age.Group = cut(RIDAGEYR, breaks=c(-Inf,19,39,59,Inf),
+                    labels=c("Under 20", "20-39","40-59","60 and over")),
+    # Generate 8-year MEC weight (Divide weight by 4 because we are 
+    #appending 4 survey cycles)                                                             
+    # Note: using the MEC Exam Weights (WTMEC2YR), per the analytic notes 
+    #on the NHANES documentation  
+    WTMEC8YR = WTMEC2YR/4,
+    # Define indicator for analysis population of interest: DUQ360 with a 
+    #valid age 
+    inAnalysis = (!is.na(DUQ360)))
+
+NHANES_all_2 <- as_survey_design(table_nhanes_1, id=SDMVPSU, strata=SDMVSTRA, 
+                                 weights=WTMEC8YR, nest=TRUE)
+
+NHANES_DUQ360 <- subset(NHANES_all_2, inAnalysis)
+
+```
+
+```{r}
+
+# Weighted data descriptive statistics and visualizations
+
+# Define a function to call svymean and unweighted count
+
+getSummary <- function(varformula, byformula, design){
+  # Get mean, stderr, and unweighted sample size
+  c <- svyby(varformula, byformula, design, unwtd.count ) 
+  p <- svyby(varformula, byformula, design, svymean) 
+  outSum <- left_join(select(c,-se), p) 
+  outSum
+}
+
+# Get results (see output for all results tables and plots)
+
+#DUQ360 weighted mean
+getSummary(~DUQ360, ~table_nhanes_1, NHANES_DUQ360)
+
+out <- svyby(formula = ~DUQ360,
+             by = ~table_nhanes_1,
+             design = NHANES_DUQ360,
+             FUN = svymean,
+             na.rm = TRUE,
+             keep.names = FALSE)
+
+out_col <- mutate(out,
+                  lower = DUQ360 - 1*se,
+                  upper = DUQ360 + 1*se)
+
+ggplot(out_col, aes(table_nhanes_1, DUQ360, 
+                    ymin = lower,
+                    ymax = upper)) + 
+  geom_col(fill = "orange") + 
+  ylim(0,NA) + 
+  ylab("Average number of days used meth in past month") + 
+  geom_errorbar(width = 0.8)
+
+table_nhanes_1_exclude_0 <- table_nhanes_1 %>%
+  filter(DUQ360 > 0)
+
+ggplot(table_nhanes_1_exclude_0, aes(x = DUQ360, weight = WTMEC8YR)) +
+  geom_histogram(binwidth = 5, color = "darkblue",
+                 fill = "lightblue", 
+                 na.rm = TRUE)+
+  xlab("Number of days used meth in past month") +
+  xlim(1,NA)
+
+# By Gender
+getSummary(~DUQ360, ~Gender, NHANES_DUQ360)
+
+out <- svyby(formula = ~DUQ360,
+             by = ~Gender,
+             design = NHANES_DUQ360,
+             FUN = svymean,
+             na.rm = TRUE,
+             keep.names = FALSE)
+
+out_col <- mutate(out,
+                  lower = DUQ360 - 1*se,
+                  upper = DUQ360 + 1*se)
+
+ggplot(out_col, aes(x = Gender, y = DUQ360, 
+                    ymin = lower,
+                    ymax = upper)) + 
+  geom_col(fill = "orange") + 
+  ylim(0,NA) + 
+  ylab("Average number of days used meth in past month") + 
+  geom_errorbar(width = 0.8) 
+
+ggplot(table_nhanes_1_exclude_0, aes(x = DUQ360, weight = WTMEC8YR)) +
+  geom_histogram(binwidth = 5, color = "darkblue",
+                 fill = "lightblue", 
+                 na.rm = TRUE) +
+  facet_wrap(~Gender) +
+  xlab("Number of days used meth in past month") +
+  xlim(1,NA)
+
+# By Age Group
+getSummary(~DUQ360, ~Age.Group, NHANES_DUQ360)
+
+out <- svyby(formula = ~DUQ360,
+             by = ~Age.Group,
+             design = NHANES_DUQ360,
+             FUN = svymean,
+             na.rm = TRUE,
+             keep.names = FALSE)
+
+out_col <- mutate(out,
+                  lower = DUQ360 - 1*se,
+                  upper = DUQ360 + 1*se)
+
+ggplot(out_col, aes(x = Age.Group, y = DUQ360, 
+                    ymin = lower,
+                    ymax = upper)) + 
+  geom_col(fill = "orange") + 
+  ylim(0,NA) + 
+  ylab("Average number of days used meth in past month") + 
+  geom_errorbar(width = 0.8) 
+
+ggplot(table_nhanes_1_exclude_0, aes(x = DUQ360, weight = WTMEC8YR)) +
+  geom_histogram(binwidth = 5, color = "darkblue",
+                 fill = "lightblue", 
+                 na.rm = TRUE) +
+  facet_wrap(~Age.Group) +
+  xlab("Number of days used meth in past month") +
+  xlim(1,NA)
+
+################Relationship to Income:Family size ratio#######################
+
+
+ggplot(table_nhanes_1_exclude_0, aes(x = DUQ360, 
+                           y = INDFMPIR, 
+                           alpha = WTMEC8YR)) + 
+  geom_point(na.rm = TRUE) + 
+  scale_color_brewer(palette = "Set2") + 
+  ylab("Income to Family Ratio") + 
+  xlab("Number of days used meth in past month") + 
+  xlim(1,30)
+
+
+ggplot(table_nhanes_1_exclude_0, aes(x = DUQ360, 
+                           y = INDFMPIR, 
+                           color = Gender, 
+                           alpha = WTMEC8YR)) + 
+  geom_point(na.rm = TRUE) +
+  scale_color_brewer(palette = "Set2") + 
+  ylab("Income to Family Ratio") + 
+  xlab("Number of days used meth in past month") + 
+  facet_wrap(~Gender) + 
+  xlim(1,30)
+
+ggplot(table_nhanes_1_exclude_0, aes(x = DUQ360, 
+                           y = INDFMPIR, 
+                           color = Gender, 
+                           alpha = WTMEC8YR)) + 
+  geom_point(na.rm = TRUE) +
+  scale_color_brewer(palette = "Set2") + 
+  ylab("Income to Family Ratio") + 
+  xlab("Number of days used meth in past month") + 
+  facet_wrap(~Age.Group) + 
+  xlim(1,30)
+
+
+```
+
+**Description of above:** *Darker shading in dot plots indicates more 
+heavily-weighted data points. Histogram "counts" are weighted.* 108 participants 
+self-reported the number of days they used methamphetamine (meth) in the past 
+month, fewer than for marijuana or cocaine but greater than for heroin use. Only 
+two participants under 20 years reported using meth during the past month. 
+Similar to marijuana, cocaine and heroin, more men (n = 78) than women (n = 30) 
+responded. Overall, the average number of days meth was used during the past 
+month was 8 days, less frequently than the average for marijuana and heroin use 
+but more frequently than cocaine use. Similar to marijuana and heroin use but in 
+contrast to cocaine use, women used meth less frequently (~6 days) than men (~9 
+days) during the last month. Frequency distribution of meth use over the past 
+month was variable. The distribution of meth use was variable and positively 
+skewed in both men and women across number of days. This was true in 20-39 year 
+olds as well. In 40-59 year olds, frequency of meth use was more bimodal, with 
+<10 or >25 days of use being most frequent. For both individuals under 20 years 
+old, reported use was <10 days over the last month. Meth was reported as used 
+more frequently during the past month in individuals with lower income to family 
+size ratio (higher poverty level) in older age groups, similar to cocaine and 
+heroin use. 
+
+_______________________________________________________________________________
+**Part 4C:** *Descriptive statistics and visualizations of self-reported age 
+when first trying A) marijuana, B) cocaine, C) heroin, and D) methamphetamine 
+(meth). Includes weighted means and standard errors described and visualized with 
+bar plots, weighted frequencies visualized with histograms, and relationships to 
+income:family size ratio, an indicator of poverty level. Data is described and 
+visualized as overall, by gender, and by age group.*
+
+```{r}
+
+## A) age first tried marijuana
+
+## Define dataset containing data of interest
+
+table_nhanes_1 <- table_2011_2018 %>%
+  # Set 777 = Refused and 999 = Don't Know To Missing for variable 210  ##
+  mutate(DUQ210 = replace(DUQ210, DUQ210 >= 777, NA)) %>%
+  #create factor variables
+    mutate(# create indicator for overall summary
+    table_nhanes_1 = 1,
+    Year = factor(SDDSRVYR, labels = c("2011-2012", "2013-2014", 
+                                       "2015-2016", "2017-2018")),
+    Gender = factor(RIAGENDR, labels=c("Men", "Women")),
+         Age.Group = cut(RIDAGEYR, breaks=c(-Inf,19,39,59,Inf),
+                         labels=c("Under 20", "20-39","40-59","60 and over")),
+         # Generate 8-year MEC weight (Divide weight by 4 because we are 
+         #appending 4 survey cycles)                                                             
+         # Note: using the MEC Exam Weights (WTMEC2YR), per the analytic notes 
+         #on the NHANES documentation  
+         WTMEC8YR = WTMEC2YR/4,
+        # Define indicator for analysis population of interest: DUQ210 with a 
+        #valid age 
+        inAnalysis = (!is.na(DUQ210)))
+
+### Define survey design 
+
+NHANES_all_2 <- as_survey_design(table_nhanes_1, id=SDMVPSU, strata=SDMVSTRA, 
+                                 weights=WTMEC8YR, nest=TRUE)
+
+NHANES_DUQ210 <- subset(NHANES_all_2, inAnalysis)
+
+```
+
+```{r}
+
+# Weighted data descriptive statistics and visualizations
+
+# Define a function to call svymean and unweighted count
+
+getSummary <- function(varformula, byformula, design){
+  # Get mean, stderr, and unweighted sample size
+  c <- svyby(varformula, byformula, design, unwtd.count ) 
+  p <- svyby(varformula, byformula, design, svymean) 
+  outSum <- left_join(select(c,-se), p) 
+  outSum
+}
+
+# Get results (see output for all results tables and plots)
+
+#DUQ210 weighted mean and frequency overall
+
+getSummary(~DUQ210, ~table_nhanes_1, NHANES_DUQ210)
+
+out <- svyby(formula = ~DUQ210,
+             by = ~table_nhanes_1,
+             design = NHANES_DUQ210,
+             FUN = svymean,
+             na.rm = TRUE,
+             keep.names = FALSE)
+
+out_col <- mutate(out,
+                  lower = DUQ210 - 1*se,
+                  upper = DUQ210 + 1*se)
+
+ggplot(out_col, aes(table_nhanes_1, DUQ210, 
+                    ymin = lower,
+                    ymax = upper)) + 
+  geom_col(fill = "purple") + 
+  ylab("Average age first tried marijuana (years)") + 
+  geom_errorbar(width = 0.8) + 
+  ylim(NA, 30)
+
+ggplot(table_nhanes_1, aes(DUQ210, weight = WTMEC8YR)) +
+  geom_histogram(binwidth = 5, color = "darkblue",
+                 fill = "lightblue", 
+                 na.rm = TRUE) +
+  xlab("Age first tried marijuana (years)")
+
+
+# DUQ210 Weighted Mean and frequency By Gender
+
+getSummary(~DUQ210, ~Gender, NHANES_DUQ210)
+
+out <- svyby(formula = ~DUQ210,
+             by = ~Gender,
+             design = NHANES_DUQ210,
+             FUN = svymean,
+             na.rm = TRUE,
+             keep.names = FALSE)
+
+out_col <- mutate(out,
+                  lower = DUQ210 - 1*se,
+                  upper = DUQ210 + 1*se)
+
+ggplot(out_col, aes(x = Gender, y = DUQ210, 
+                    ymin = lower,
+                    ymax = upper)) + 
+  geom_col(fill = "purple") + 
+  ylab("Average age first tried marijuana (years)") + 
+  geom_errorbar(width = 0.8) + 
+  ylim(NA, 30)
+
+ggplot(table_nhanes_1, aes(DUQ210, weight = WTMEC8YR)) +
+  geom_histogram(binwidth = 5, color = "darkblue",
+                 fill = "lightblue", 
+                 na.rm = TRUE) +
+  xlab("Age first tried marijuana (years)") + 
+  facet_wrap(~Gender)
+
+# DUQ210 weighted mean and frequency By age group
+
+getSummary(~DUQ210, ~Age.Group, NHANES_DUQ210)
+
+out <- svyby(formula = ~DUQ210,
+             by = ~Age.Group,
+             design = NHANES_DUQ210,
+             FUN = svymean,
+             na.rm = TRUE,
+             keep.names = FALSE)
+
+out_col <- mutate(out,
+                  lower = DUQ210 - 1*se,
+                  upper = DUQ210 + 1*se)
+
+ggplot(out_col, aes(x = Age.Group, y = DUQ210, 
+                    ymin = lower,
+                    ymax = upper)) + 
+  geom_col(fill = "purple") + 
+  ylab("Average age first tried marijuana (years)") + 
+  geom_errorbar(width = 0.8) + 
+  ylim(NA, 30)
+
+ggplot(table_nhanes_1, aes(DUQ210, weight = WTMEC8YR)) +
+  geom_histogram(binwidth = 5, color = "darkblue",
+                 fill = "lightblue", 
+                 na.rm = TRUE) +
+  xlab("Age first tried marijuana (years)") + 
+  facet_wrap(~Age.Group)
+
+################Relationship to Income:Family size ratio#######################
+
+ggplot(table_nhanes_1, aes(x = DUQ210, y = INDFMPIR, alpha = WTMEC8YR)) + 
+  geom_point(na.rm = TRUE) + 
+  scale_color_brewer(palette = "Set2") + 
+    ylab("Income to Family Ratio") + 
+    xlab("Age first tried marijuana") 
+
+
+ggplot(table_nhanes_1, aes(x = DUQ210, y = INDFMPIR, 
+                           color = Gender, 
+                           alpha = WTMEC8YR)) + 
+  geom_point(na.rm = TRUE) +
+  scale_color_brewer(palette = "Set2") + 
+  ylab("Income to Family Ratio") + 
+  xlab("Age first tried marijuana") + 
+  facet_wrap(~Gender)
+
+ggplot(table_nhanes_1, aes(x = DUQ210, y = INDFMPIR, 
+                            color = Gender, 
+                            alpha = WTMEC8YR)) + 
+  geom_point(na.rm = TRUE) +
+  scale_color_brewer(palette = "Set2") + 
+  ylab("Income to Family Ratio") + 
+  xlab("Age first tried marijuana") + 
+  facet_wrap(~Age.Group)
+
+```
+
+**Description of above:** *Darker shading in dot plots indicates more 
+heavily-weighted data points. Histogram "counts" are weighted.* More men 
+(n = 3928) than women (n = 3285) reported age at first trying marijuana. The 
+overall average age at first trying marijuana was ~17 yrs and was similar for 
+men and women, with women being slightly older (<1 year). Average age at first 
+trying marijuana decreased as age group decreased, implying that participants 
+aged 20-39 and 40-59 tried marijuana at slightly older ages (~17-18) than under 
+20 participants (~age 16). The histograms show that in these older age groups, 
+average ages at first trying marijuana were skewed towards older age due to 
+participants reporting trying marijuana for the first time in their 30's and 
+40's. The scatterplots do not demonstrate a clear relationship between 
+income:family size ratio (lower ratios indicate greater poverty) overall, by 
+gender, or by age group. Interestingly, many older participants, across the 
+income:family size ratio spectra, reported using marijuana for the first time at 
+over 20 years.
+
+```{r}
+
+# B) Age first used cocaine (DUQ260)
+
+table_nhanes_1 <- table_2011_2018 %>%
+  mutate(DUQ260 = replace(DUQ260, DUQ260 >= 777, NA)) %>%
+  #create factor variables
+  mutate(# create indicator for overall summary
+    table_nhanes_1 = 1,
+    Year = factor(SDDSRVYR, labels = c("2011-2012", "2013-2014", 
+                                       "2015-2016", "2017-2018")),
+    Gender = factor(RIAGENDR, labels=c("Men", "Women")),
+    Age.Group = cut(RIDAGEYR, breaks=c(-Inf,19,39,59,Inf),
+                    labels=c("Under 20", "20-39","40-59","60 and over")),
+    # Generate 8-year MEC weight (Divide weight by 4 because we are 
+    #appending 4 survey cycles)                                                             
+    # Note: using the MEC Exam Weights (WTMEC2YR), per the analytic notes 
+    #on the NHANES documentation  
+    WTMEC8YR = WTMEC2YR/4,
+    # Define indicator for analysis population of interest: DUQ260 with a 
+    #valid age 
+    inAnalysis = (!is.na(DUQ260)))
+
+NHANES_all_2 <- as_survey_design(table_nhanes_1, id=SDMVPSU, strata=SDMVSTRA, 
+                                 weights=WTMEC8YR, nest=TRUE)
+
+NHANES_DUQ260 <- subset(NHANES_all_2, inAnalysis)
+
+```
+
+```{r}
+
+# Weighted data descriptive statistics and visualizations
+
+getSummary <- function(varformula, byformula, design){
+  # Get mean, stderr, and unweighted sample size
+  c <- svyby(varformula, byformula, design, unwtd.count ) 
+  p <- svyby(varformula, byformula, design, svymean) 
+  outSum <- left_join(select(c,-se), p) 
+  outSum
+}
+
+# Get results (see output for all results tables and plots)
+
+#DUQ260 weighted mean and frequency overall
+
+getSummary(~DUQ260, ~table_nhanes_1, NHANES_DUQ260)
+
+out <- svyby(formula = ~DUQ260,
+             by = ~table_nhanes_1,
+             design = NHANES_DUQ260,
+             FUN = svymean,
+             na.rm = TRUE,
+             keep.names = FALSE)
+
+out_col <- mutate(out,
+                  lower = DUQ260 - 1*se,
+                  upper = DUQ260 + 1*se)
+
+ggplot(out_col, aes(table_nhanes_1, DUQ260, 
+                    ymin = lower,
+                    ymax = upper)) + 
+  geom_col(fill = "blue") + 
+  ylab("Age first tried cocaine (years)") + 
+  geom_errorbar(width = 0.8) + 
+  ylim(NA,30)
+
+ggplot(table_nhanes_1, aes(DUQ260, weight = WTMEC8YR)) +
+  geom_histogram(binwidth = 5, color = "darkblue",
+                 fill = "lightblue", na.rm = TRUE) +
+  xlab("Age first tried cocaine (years)")
+
+# By Gender
+
+getSummary(~DUQ260, ~Gender, NHANES_DUQ260)
+
+out <- svyby(formula = ~DUQ260,
+             by = ~Gender,
+             design = NHANES_DUQ260,
+             FUN = svymean,
+             na.rm = TRUE,
+             keep.names = FALSE)
+
+out_col <- mutate(out,
+                  lower = DUQ260 - 1*se,
+                  upper = DUQ260 + 1*se)
+
+ggplot(out_col, aes(x = Gender, y = DUQ260, 
+                    ymin = lower,
+                    ymax = upper)) + 
+  geom_col(fill = "blue") + 
+  ylim(0,NA) + 
+  ylab("Age first tried cocaine (years)") + 
+  geom_errorbar(width = 0.8) + 
+  ylim(NA,30)
+
+ggplot(table_nhanes_1, aes(DUQ260, weight = WTMEC8YR)) +
+  geom_histogram(binwidth = 5, color = "darkblue",
+                 fill = "lightblue", na.rm = TRUE) +
+  xlab("Age first tried cocaine (years)") + 
+  facet_wrap(~Gender)
+
+# By age
+getSummary(~DUQ260, ~Age.Group, NHANES_DUQ260)
+
+out <- svyby(formula = ~DUQ260,
+             by = ~Age.Group,
+             design = NHANES_DUQ260,
+             FUN = svymean,
+             na.rm = TRUE,
+             keep.names = FALSE)
+
+out_col <- mutate(out,
+                  lower = DUQ260 - 1*se,
+                  upper = DUQ260 + 1*se)
+
+ggplot(out_col, aes(x = Age.Group, y = DUQ260, 
+                    ymin = lower,
+                    ymax = upper)) + 
+  geom_col(fill = "blue") + 
+  ylim(0,NA) + 
+  ylab("Age first tried cocaine (years)") + 
+  geom_errorbar(width = 0.8) + 
+  ylim(NA,30)
+
+ggplot(table_nhanes_1, aes(DUQ260, weight = WTMEC8YR)) +
+  geom_histogram(binwidth = 5, color = "darkblue",
+                 fill = "lightblue", na.rm = TRUE) +
+  xlab("Age first tried cocaine (years)") + 
+  facet_wrap(~Age.Group)
+
+################Relationship to Income:Family size ratio#######################
+
+ggplot(table_nhanes_1, aes(x = DUQ260, y = 
+                             INDFMPIR, alpha = WTMEC8YR)) + 
+  geom_point(na.rm = TRUE) + 
+  scale_color_brewer(palette = "Set3") + 
+  ylab("Income to Family Ratio") + 
+  xlab("Age first tried cocaine") 
+
+
+ggplot(table_nhanes_1, aes(x = DUQ260, y = 
+                             INDFMPIR, 
+                           color = Gender, 
+                           alpha = WTMEC8YR)) + 
+  geom_point(na.rm = TRUE) +
+  scale_color_brewer(palette = "Set2") + 
+  ylab("Income to Family Ratio") + 
+  xlab("Age first tried cocaine") + 
+  facet_wrap(~Gender)
+
+ggplot(table_nhanes_1, aes(x = DUQ260, y = 
+                              INDFMPIR, 
+                            color = Gender, 
+                            alpha = WTMEC8YR)) + 
+  geom_point(na.rm = TRUE) +
+  scale_color_brewer(palette = "Set2") + 
+  ylab("Income to Family Ratio") + 
+  xlab("Age first tried cocaine") + 
+  facet_wrap(~Age.Group) 
+```
+
+**Description of above:** *Darker shading in dot plots indicates more 
+heavily-weighted data points. Histogram "counts" are weighted.* Similar to 
+marijuana, more men (n = 1298) than women (n = 795) reported age at first using 
+cocaine. The overall average age at first using cocaine was ~21 yrs, about 4 
+years older than for marijuana, and was similar among men and women (total n = 
+2093). Similar to marijuana, average age at first trying cocaine decreased as 
+age group decreased, implying that participants aged 20-59 tried cocaine at 
+slightly older ages than under 20 participants.The histograms show that in these 
+older age groups, age at first trying cocaine was skewed towards older age due to 
+participants reporting trying cocaine for the first time in their 30's and 
+40's, similar to marijuana. Only 48 participants under 20 years reported age at 
+first trying cocaine.The scatterplots do not demonstrate a clear relationship 
+between income:family size ratio (lower ratios indicate greater poverty) and 
+cocaine use by gender. Interestingly, there is a pattern in which many older 
+participants (20-59 years) at higher poverty levels report older than average 
+ages at first trying cocaine compared to participants with lower poverty levels.
+
+
+
+```{r}
+
+# C) Age first tried heroin (DUQ300)
+
+table_nhanes_1 <- table_2011_2018 %>%
+  mutate(DUQ300 = replace(DUQ300, DUQ300 >= 777, NA)) %>%
+  #create factor variables
+  mutate(# create indicator for overall summary
+    table_nhanes_1 = 1,
+    Year = factor(SDDSRVYR, labels = c("2011-2012", "2013-2014", 
+                                       "2015-2016", "2017-2018")),
+    Gender = factor(RIAGENDR, labels=c("Men", "Women")),
+    Age.Group = cut(RIDAGEYR, breaks=c(-Inf,19,39,59,Inf),
+                    labels=c("Under 20", "20-39","40-59","60 and over")),
+    # Generate 8-year MEC weight (Divide weight by 4 because we are 
+    #appending 4 survey cycles)                                                             
+    # Note: using the MEC Exam Weights (WTMEC2YR), per the analytic notes 
+    #on the NHANES documentation  
+    WTMEC8YR = WTMEC2YR/4,
+    # Define indicator for analysis population of interest: DUQ300 with a 
+    #valid age 
+    inAnalysis = (!is.na(DUQ300)))
+
+NHANES_all_2 <- as_survey_design(table_nhanes_1, id=SDMVPSU, strata=SDMVSTRA, 
+                                 weights=WTMEC8YR, nest=TRUE)
+
+NHANES_DUQ300 <- subset(NHANES_all_2, inAnalysis)
+
+```  
+
+```{r}
+
+# Weighted data descriptive statistics and visualizations
+
+getSummary <- function(varformula, byformula, design){
+  # Get mean, stderr, and unweighted sample size
+  c <- svyby(varformula, byformula, design, unwtd.count ) 
+  p <- svyby(varformula, byformula, design, svymean) 
+  outSum <- left_join(select(c,-se), p) 
+  outSum
+}
+
+# Get results (see output for all results tables and plots)
+
+#DUQ300 weighted mean overall
+
+getSummary(~DUQ300, ~table_nhanes_1, NHANES_DUQ300)
+
+out <- svyby(formula = ~DUQ300,
+             by = ~table_nhanes_1,
+             design = NHANES_DUQ300,
+             FUN = svymean,
+             na.rm = TRUE,
+             keep.names = FALSE)
+
+out_col <- mutate(out,
+                  lower = DUQ300 - 1*se,
+                  upper = DUQ300 + 1*se)
+
+ggplot(out_col, aes(table_nhanes_1, DUQ300, 
+                    ymin = lower,
+                    ymax = upper)) + 
+  geom_col(fill = "green") + 
+  ylab("Age first tried heroin (years)") + 
+  geom_errorbar(width = 0.8) + 
+  ylim(NA,30)
+
+ggplot(table_nhanes_1, aes(x = DUQ300, weight = WTMEC8YR)) +
+  geom_histogram(binwidth = 5, color = "darkblue",
+                 fill = "lightblue", 
+                 na.rm = TRUE)+
+  xlab("Age first tried heroin (years)")
+
+# By Gender
+getSummary(~DUQ300, ~Gender, NHANES_DUQ300)
+
+out <- svyby(formula = ~DUQ300,
+             by = ~Gender,
+             design = NHANES_DUQ300,
+             FUN = svymean,
+             na.rm = TRUE,
+             keep.names = FALSE)
+
+out_col <- mutate(out,
+                  lower = DUQ300 - 1*se,
+                  upper = DUQ300 + 1*se)
+
+ggplot(out_col, aes(x = Gender, y = DUQ300, 
+                    ymin = lower,
+                    ymax = upper)) + 
+  geom_col(fill = "green") + 
+  ylab("Age first tried heroin (years)") + 
+  geom_errorbar(width = 0.8) + 
+  ylim(NA,30)
+
+ggplot(table_nhanes_1, aes(x = DUQ300, weight = WTMEC8YR)) +
+  geom_histogram(binwidth = 5, color = "darkblue",
+                 fill = "lightblue", 
+                 na.rm = TRUE) +
+  facet_wrap(~Gender) +
+  xlab("Age first tried heroin (years)")
+
+# By age
+getSummary(~DUQ300, ~Age.Group, NHANES_DUQ300)
+
+out <- svyby(formula = ~DUQ300,
+             by = ~Age.Group,
+             design = NHANES_DUQ300,
+             FUN = svymean,
+             na.rm = TRUE,
+             keep.names = FALSE)
+
+out_col <- mutate(out,
+                  lower = DUQ300 - 1*se,
+                  upper = DUQ300 + 1*se)
+
+ggplot(out_col, aes(x = Age.Group, y = DUQ300, 
+                    ymin = lower,
+                    ymax = upper)) + 
+  geom_col(fill = "green") + 
+  ylab("Age first tried heroin (years)") + 
+  geom_errorbar(width = 0.8) + 
+  ylim(NA,30)
+
+ggplot(table_nhanes_1, aes(x = DUQ300, weight = WTMEC8YR)) +
+  geom_histogram(binwidth = 5, color = "darkblue",
+                 fill = "lightblue", 
+                 na.rm = TRUE) +
+  facet_wrap(~Age.Group) +
+  xlab("Age first tried heroin (years)")
+
+################Relationship to Income:Family size ratio#######################
+
+ggplot(table_nhanes_1, aes(x = DUQ300, 
+                           y = INDFMPIR, 
+                           alpha = WTMEC8YR)) + 
+  geom_point(na.rm = TRUE) + 
+  scale_color_brewer(palette = "Set2") + 
+  ylab("Income to Family Ratio") + 
+  xlab("Age first tried heroin (years)") 
+
+
+ggplot(table_nhanes_1, aes(x = DUQ300, 
+                           y = INDFMPIR, 
+                                     color = Gender, 
+                                     alpha = WTMEC8YR)) + 
+  geom_point(na.rm = TRUE) +
+  scale_color_brewer(palette = "Set2") + 
+  ylab("Income to Family Ratio") + 
+  xlab("Age first tried heroin (years)") + 
+  facet_wrap(~Gender)
+
+ggplot(table_nhanes_1, aes(x = DUQ300, 
+                           y = INDFMPIR, 
+                                     color = Gender, 
+                                     alpha = WTMEC8YR)) + 
+  geom_point(na.rm = TRUE) +
+  scale_color_brewer(palette = "Set2") + 
+  ylab("Income to Family Ratio") + 
+  xlab("Age first tried heroin (years)") + 
+  facet_wrap(~Age.Group) 
+
+
+```
+
+**Description of above:** *Darker shading in dot plots indicates more 
+heavily-weighted data points. Histogram "counts" are weighted.* Only one 
+participant under 20 years reported age at first using heroin. Relative to 
+marijuana and cocaine, a smaller number of participants (total n = 285) reported 
+their age when they first tried heroin. Similar to marijuana and cocaine, more 
+men (n = 190) than women (n = 95) responded. Overall average age at first 
+trying heroin was ~24 yrs, about 7 and 3 years older than for marijuana and 
+cocaine, respectively, as shown above. On average, and dissimilar to marijuana 
+and cocaine, respectively, women were slightly younger than men. Similar to 
+marijuana and cocaine, average age at first trying heroin decreased as age group 
+decreased. Interestingly, the histograms show that older participants, 
+especially men, reported first trying heroin at older ages including 30s, 40s 
+and even 50s. The scatterplots demonstrate a relationship between income:family 
+size ratio (lower ratios indicate greater poverty) in which older participants 
+20-59 years with greater poverty report first age at trying heroin at both 
+younger and older ages relative to those at lower poverty levels, similar to 
+cocaine use.
+
+
+
+```{r}
+
+# D) Age first tried meth (DUQ340)
+
+table_nhanes_1 <- table_2011_2018 %>%
+  mutate(DUQ340 = replace(DUQ340, DUQ340 >= 777, NA)) %>%
+  #create factor variables
+  mutate(# create indicator for overall summary
+    table_nhanes_1 = 1,
+    Year = factor(SDDSRVYR, labels = c("2011-2012", "2013-2014", 
+                                       "2015-2016", "2017-2018")),
+    Gender = factor(RIAGENDR, labels=c("Men", "Women")),
+    Age.Group = cut(RIDAGEYR, breaks=c(-Inf,19,39,59,Inf),
+                    labels=c("Under 20", "20-39","40-59","60 and over")),
+    # Generate 8-year MEC weight (Divide weight by 4 because we are 
+    #appending 4 survey cycles)                                                             
+    # Note: using the MEC Exam Weights (WTMEC2YR), per the analytic notes 
+    #on the NHANES documentation  
+    WTMEC8YR = WTMEC2YR/4,
+    # Define indicator for analysis population of interest: DUQ340 with a 
+    #valid age 
+    inAnalysis = (!is.na(DUQ340)))
+
+NHANES_all_2 <- as_survey_design(table_nhanes_1, id=SDMVPSU, strata=SDMVSTRA, 
+                                 weights=WTMEC8YR, nest=TRUE)
+
+NHANES_DUQ340 <- subset(NHANES_all_2, inAnalysis)
+
+```
+
+```{r}
+
+# Weighted data descriptive statistics and visualizations
+
+getSummary <- function(varformula, byformula, design){
+  # Get mean, stderr, and unweighted sample size
+  c <- svyby(varformula, byformula, design, unwtd.count ) 
+  p <- svyby(varformula, byformula, design, svymean) 
+  outSum <- left_join(select(c,-se), p) 
+  outSum
+}
+
+# Get results (see output for all results tables and plots)
+
+#DUQ340 weighted mean overall
+
+getSummary(~DUQ340, ~table_nhanes_1, NHANES_DUQ340)
+
+out <- svyby(formula = ~DUQ340,
+             by = ~table_nhanes_1,
+             design = NHANES_DUQ340,
+             FUN = svymean,
+             na.rm = TRUE,
+             keep.names = FALSE)
+
+out_col <- mutate(out,
+                  lower = DUQ340 - 1*se,
+                  upper = DUQ340 + 1*se)
+
+ggplot(out_col, aes(table_nhanes_1, DUQ340, 
+                    ymin = lower,
+                    ymax = upper)) + 
+  geom_col(fill = "orange") + 
+  ylab("Average age first tried meth (years)") + 
+  geom_errorbar(width = 0.8) + 
+  ylim(NA,30)
+
+ggplot(table_nhanes_1, aes(x = DUQ340, weight = WTMEC8YR)) +
+  geom_histogram(binwidth = 5, color = "darkblue",
+                 fill = "lightblue", 
+                 na.rm = TRUE)+
+  xlab("Age first tried meth (years)")
+
+# By Gender
+getSummary(~DUQ340, ~Gender, NHANES_DUQ340)
+
+out <- svyby(formula = ~DUQ340,
+             by = ~Gender,
+             design = NHANES_DUQ340,
+             FUN = svymean,
+             na.rm = TRUE,
+             keep.names = FALSE)
+
+out_col <- mutate(out,
+                  lower = DUQ340 - 1*se,
+                  upper = DUQ340 + 1*se)
+
+ggplot(out_col, aes(x = Gender, y = DUQ340, 
+                    ymin = lower,
+                    ymax = upper)) + 
+  geom_col(fill = "orange") + 
+  ylab("Average age first tried meth (years)") + 
+  geom_errorbar(width = 0.8) + 
+  ylim(NA,30)
+
+ggplot(table_nhanes_1, aes(x = DUQ340, weight = WTMEC8YR)) +
+  geom_histogram(binwidth = 5, color = "darkblue",
+                 fill = "lightblue", 
+                 na.rm = TRUE) +
+  facet_wrap(~Gender) +
+  xlab("Age first tried meth (years)")
+
+# By Age
+getSummary(~DUQ340, ~Age.Group, NHANES_DUQ340)
+
+out <- svyby(formula = ~DUQ340,
+             by = ~Age.Group,
+             design = NHANES_DUQ340,
+             FUN = svymean,
+             na.rm = TRUE,
+             keep.names = FALSE)
+
+out_col <- mutate(out,
+                  lower = DUQ340 - 1*se,
+                  upper = DUQ340 + 1*se)
+
+ggplot(out_col, aes(x = Age.Group, y = DUQ340, 
+                    ymin = lower,
+                    ymax = upper)) + 
+  geom_col(fill = "orange") + 
+  ylab("Average age first tried meth (years)") + 
+  geom_errorbar(width = 0.8) + 
+  ylim(NA,30)
+
+ggplot(table_nhanes_1, aes(x = DUQ340, weight = WTMEC8YR)) +
+  geom_histogram(binwidth = 5, color = "darkblue",
+                 fill = "lightblue", 
+                 na.rm = TRUE) +
+  facet_wrap(~Age.Group) +
+  xlab("Age first tried meth (years)")
+
+################Relationship to Income:Family size ratio#######################
+
+ggplot(table_nhanes_1, aes(x = DUQ340, 
+                                     y = INDFMPIR, 
+                                     alpha = WTMEC8YR)) + 
+  geom_point(na.rm = TRUE) + 
+  scale_color_brewer(palette = "Set2") + 
+  ylab("Income to Family Ratio") + 
+  xlab("Age first tried meth (years)") 
+
+
+ggplot(table_nhanes_1, aes(x = DUQ340, 
+                                     y = INDFMPIR, 
+                                     color = Gender, 
+                                     alpha = WTMEC8YR)) + 
+  geom_point(na.rm = TRUE) +
+  scale_color_brewer(palette = "Set2") + 
+  ylab("Income to Family Ratio") + 
+  xlab("Age first tried meth (years)") + 
+  facet_wrap(~Gender) 
+
+ggplot(table_nhanes_1, aes(x = DUQ340, 
+                                     y = INDFMPIR, 
+                                     color = Gender, 
+                                     alpha = WTMEC8YR)) + 
+  geom_point(na.rm = TRUE) +
+  scale_color_brewer(palette = "Set2") + 
+  ylab("Income to Family Ratio") + 
+  xlab("Age first tried meth (years)") + 
+  facet_wrap(~Age.Group) 
+
+
+```
+
+**Description of above:** *Darker shading in dot plots indicates more 
+heavily-weighted data points. Histogram "counts" are weighted.* Similar to other 
+drugs, more men (n = 588) than women (n = 312) reported age at first using 
+methamphetamine (meth). Only 12 participants under 20 years responded. Similar 
+to cocaine, the overall average age at first trying meth was ~22 yrs. Similar to 
+marijuana, cocaine, and heroin, average age at first trying meth decreased as 
+age group decreased, implying that participants aged 20-39 and 40-59 tried 
+meth at older ages than the under 20 participants who responded. Interestingly, 
+similar to heroin, the histograms show that men and women 
+reported first trying meth at older ages including 30s, 40s and even 50s. 
+The scatterplots demonstrate a pattern in which men and women 20-59 years old 
+report trying meth for the first time at older ages relative to their cohorts at 
+lower poverty levels.
+
+
+
+
+
+
+
+
+```
+
+
+
+ 
